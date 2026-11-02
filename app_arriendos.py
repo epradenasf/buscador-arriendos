@@ -14,7 +14,7 @@ FILE_PATH = "registro_departamentos.csv"
 
 CORE_COLUMNS = [
     "Dirección/Comuna", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
-    "Teléfono", "Link", "Estado Visita", "Fecha Visita", "Hora", "Notas", "Opinión Final"
+    "Teléfono", "Link", "Estado Visita", "Fecha Visita", "Notas", "Opinión Final"
 ]
 
 def guardar_en_github(df_a_guardar):
@@ -50,7 +50,7 @@ def guardar_en_github(df_a_guardar):
 
 def load_data():
     if os.path.exists(FILE_PATH):
-        df = pd.read_csv(FILE_PATH, dtype={"Teléfono": str, "Hora": str})
+        df = pd.read_csv(FILE_PATH, dtype={"Teléfono": str})
         
         for col in CORE_COLUMNS:
             if col not in df.columns:
@@ -66,9 +66,9 @@ def load_data():
                     df[col] = ""
                     
         if "Fecha Visita" in df.columns:
-            df["Fecha Visita"] = pd.to_datetime(df["Fecha Visita"], errors='coerce').dt.date
+            df["Fecha Visita"] = pd.to_datetime(df["Fecha Visita"], errors='coerce')
             
-        for col in ["Dirección/Comuna", "Teléfono", "Hora", "Estado Visita", "Opinión Final", "Link", "Notas"]:
+        for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
             if col in df.columns:
                 df[col] = df[col].fillna("").astype(str)
                 if col == "Teléfono":
@@ -115,7 +115,7 @@ edited_df = st.data_editor(
     num_rows="dynamic",
     column_order=[
         "Dirección/Comuna", "Mapa", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
-        "Teléfono", "WhatsApp", "Link", "Estado Visita", "Fecha Visita", "Hora", 
+        "Teléfono", "WhatsApp", "Link", "Estado Visita", "Fecha Visita", 
         "Notas", "Opinión Final"
     ],
     column_config={
@@ -130,8 +130,7 @@ edited_df = st.data_editor(
         "WhatsApp": st.column_config.LinkColumn("💬 WhatsApp", display_text="Abrir Chat"),
         "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link"),
         "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Espera de respuesta", "Visita agendada", "Visitado"], required=True, default="Por contactar"),
-        "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
-        "Hora": st.column_config.TextColumn("⏰ Hora (ej: 15:30)"),
+        "Fecha Visita": st.column_config.DatetimeColumn("📅 Fecha y Hora Visita", format="DD/MM/YYYY HH:mm"),
         "Notas": st.column_config.TextColumn("📝 Notas"),
         "Opinión Final": st.column_config.SelectboxColumn("⭐ Opinión", options=["-", "Descartado", "Posible", "Muy posible"], required=True, default="-")
     },
@@ -142,7 +141,7 @@ edited_df = st.data_editor(
 if st.button("💾 Guardar Cambios", type="primary"):
     save_df = edited_df[[col for col in CORE_COLUMNS if col in edited_df.columns]].copy()
     
-    for col in ["Dirección/Comuna", "Teléfono", "Hora", "Estado Visita", "Opinión Final", "Link", "Notas"]:
+    for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
         if col in save_df.columns:
             save_df[col] = save_df[col].fillna("").astype(str)
             if col == "Teléfono":
@@ -168,7 +167,7 @@ if f_opinion:
 
 if f_estado or f_opinion:
     st.dataframe(
-        df_filtrado[["Dirección/Comuna", "Mapa", "Precio", "GGCC", "Estado Visita", "Fecha Visita", "Hora", "Link"]], 
+        df_filtrado[["Dirección/Comuna", "Mapa", "Precio", "GGCC", "Link"]], 
         use_container_width=True, 
         hide_index=True,
         column_config={
@@ -184,10 +183,11 @@ if not df.empty:
     if not agendadas.empty:
         agendadas = agendadas.sort_values(by="Fecha Visita", na_position="last")
         st.dataframe(
-            agendadas[["Fecha Visita", "Hora", "Dirección/Comuna", "Mapa", "Teléfono", "Precio", "GGCC", "Link"]], 
+            agendadas[["Fecha Visita", "Dirección/Comuna", "Mapa", "Teléfono", "Precio", "GGCC", "Link"]], 
             use_container_width=True, 
             hide_index=True,
             column_config={
+                "Fecha Visita": st.column_config.DatetimeColumn("📅 Fecha y Hora", format="DD/MM/YYYY HH:mm"),
                 "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver Mapa"),
                 "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link")
             }
