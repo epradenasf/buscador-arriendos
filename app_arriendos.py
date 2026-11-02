@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import os
 import re
+import base64
+import requests
 
 st.set_page_config(page_title="Buscador de Arriendos", layout="wide", page_icon="🏡")
 
@@ -15,9 +17,46 @@ CORE_COLUMNS = [
     "Teléfono", "Link", "Fecha Visita", "Estado Visita", "Notas", "Opinión Final"
 ]
 
+# Función para sincronizar y guardar el CSV directamente en GitHub
+def guardar_en_github(df_a_guardar):
+    # Guardar localmente primero
+    df_a_guardar.to_csv(FILE_PATH, index=False)
+    
+    # Si estamos en Streamlit Cloud y configuraste los secretos, sube a GitHub
+    if "GITHUB_TOKEN" in st.secrets and "REPO_NAME" in st.secrets:
+        token = st.secrets["GITHUB_TOKEN"]
+        repo = st.secrets["REPO_NAME"]
+        url = f"https://api.github.com/repos/{repo}/contents/{FILE_PATH}"
+        
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json"
+        }
+        
+        # Obtener el sha actual del archivo en GitHub (necesario para actualizarlo)
+        response = requests.get(url, headers=headers)
+        sha = response.json().get("sha") if response.status_code == 200 else None
+        
+        # Leer el CSV local y pasarlo a base64
+        with open(FILE_PATH, "rb") as f:
+            content_bytes = f.read()
+        content_encoded = base64.b64encode(content_bytes).decode("utf-8")
+        
+        # Preparar los datos para la API de GitHub
+        data = {
+            "message": "Actualización automática de arriendos desde Streamlit",
+            "content": content_encoded
+        }
+        if sha:
+            data["sha"] = sha
+            
+        # Enviar actualización a GitHub
+        put_response = requests.put(url, headers=headers, json=data)
+        if put_response.status_code not in [200, 201]:
+            st.warning("Se guardó localmente, pero hubo un problema al sincronizar con GitHub.")
+
 def load_data():
     if os.path.exists(FILE_PATH):
-        # Forzar que la columna Teléfono se lea siempre como texto (str)
         df = pd.read_csv(FILE_PATH, dtype={"Teléfono": str})
         
         for col in CORE_COLUMNS:
@@ -38,7 +77,6 @@ def load_data():
             
         for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
             df[col] = df[col].fillna("").astype(str)
-            # Limpiar por si quedó algún .0 heredado del archivo anterior
             if col == "Teléfono":
                 df[col] = df[col].str.replace(r'\.0$', '', regex=True)
             
@@ -62,7 +100,7 @@ with col4:
     st.metric("Descartados", len(df[df["Opinión Final"] == "Descartado"]) if not df.empty else 0)
 
 st.markdown("### 📋 Registro Principal")
-st.info("💡 **Tip:** Rellena los datos, escribe la dirección y haz clic en **Guardar Cambios** para activar el mapa y asegurar que todo quede registrado.")
+st.info("💡 **Tip:** Rellena los datos, escribe la dirección y haz clic en **Guardar Cambios** para sincronizar automáticamente con la nube.")
 
 def color_filas(row):
     if row["Estado Visita"] == "Visitado":
@@ -115,8 +153,10 @@ if st.button("💾 Guardar Cambios", type="primary"):
             if col == "Teléfono":
                 save_df[col] = save_df[col].str.replace(r'\.0$', '', regex=True)
             
-    save_df.to_csv(FILE_PATH, index=False)
-    st.success("¡Datos guardados con éxito!")
+    # Llamar a la función que guarda y actualiza GitHub automáticamente
+    guardar_en_github(save_df)
+    
+    st.success("¡Datos guardados y sincronizados en la nube con éxito!")
     st.rerun()
 
 st.markdown("---")
