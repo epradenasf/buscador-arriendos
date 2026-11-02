@@ -94,15 +94,16 @@ with col4:
     st.metric("Descartados", len(df[df["Opinión Final"] == "Descartado"]) if not df.empty else 0)
 
 st.markdown("### 📋 Registro Principal")
-st.info("💡 **Tip:** Rellena los datos, escribe la dirección y haz clic en **Guardar Cambios** para sincronizar automáticamente con la nube.")
+st.info("💡 **Tip:** Haz clic en los encabezados de las columnas (ej. 'Precio') para ordenar de menor a mayor o alfabéticamente. Rellena los datos y haz clic en **Guardar Cambios**.")
 
+# Reglas de colores actualizadas (Azul suave si está Visitado)
 def color_filas(row):
     if row["Estado Visita"] == "Visitado":
-        return ['background-color: #d4edda; color: #155724'] * len(row)
+        return ['background-color: #cce5ff; color: #004085'] * len(row)
     elif row["Opinión Final"] == "Descartado":
         return ['background-color: #f8d7da; color: #721c24'] * len(row)
     elif row["Opinión Final"] == "Muy posible":
-        return ['background-color: #cce5ff; color: #004085'] * len(row)
+        return ['background-color: #d4edda; color: #155724'] * len(row)
     return [''] * len(row)
 
 if not df.empty:
