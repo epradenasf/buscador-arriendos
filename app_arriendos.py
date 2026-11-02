@@ -20,6 +20,9 @@ def load_data():
         for col in ["Habitaciones", "Baños"]:
             if col not in df.columns:
                 df[col] = 0.0
+        for col in ["Precio", "GGCC"]:
+            if col not in df.columns:
+                df[col] = 0.0
         if "Balcón" not in df.columns:
             df["Balcón"] = False
         if "Teléfono" not in df.columns:
@@ -34,12 +37,14 @@ def load_data():
         return df
     else:
         df_vacio = pd.DataFrame(columns=[
-            "Dirección/Comuna", "Precio", "Habitaciones", "Baños", "Balcón", "Teléfono",
+            "Dirección/Comuna", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", "Teléfono",
             "Fecha Visita", "Estado Visita", "Opinión Final", "Link", "Notas"
         ])
         cols_texto = ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]
         for col in cols_texto:
             df_vacio[col] = df_vacio[col].astype(str)
+        df_vacio["Precio"] = df_vacio["Precio"].astype(float)
+        df_vacio["GGCC"] = df_vacio["GGCC"].astype(float)
         df_vacio["Habitaciones"] = df_vacio["Habitaciones"].astype(float)
         df_vacio["Baños"] = df_vacio["Baños"].astype(float)
         df_vacio["Balcón"] = df_vacio["Balcón"].astype(bool)
@@ -47,7 +52,6 @@ def load_data():
 
 df = load_data()
 
-# Generar Links Dinámicos (El teléfono se convierte en enlace de WhatsApp)
 df["Mapa"] = "https://www.google.com/maps/search/?api=1&query=" + df["Dirección/Comuna"].str.replace(" ", "+")
 df["WhatsApp"] = df["Teléfono"].apply(lambda x: f"https://wa.me/{re.sub(r'[^0-9]', '', str(x))}" if pd.notna(x) and str(x).strip() != "" else "")
 
@@ -62,19 +66,7 @@ with col4:
     st.metric("Descartados", len(df[df["Opinión Final"] == "Descartado"]) if not df.empty else 0)
 
 st.markdown("### 📋 Registro Principal")
-
-st.write("🔍 **Filtros de Búsqueda:**")
-col_f1, col_f2 = st.columns(2)
-with col_f1:
-    f_estado = st.multiselect("Filtrar por Estado:", df["Estado Visita"].unique() if not df.empty else [])
-with col_f2:
-    f_opinion = st.multiselect("Filtrar por Opinión:", df["Opinión Final"].unique() if not df.empty else [])
-
-df_filtrado = df.copy()
-if f_estado:
-    df_filtrado = df_filtrado[df_filtrado["Estado Visita"].isin(f_estado)]
-if f_opinion:
-    df_filtrado = df_filtrado[df_filtrado["Opinión Final"].isin(f_opinion)]
+st.info("💡 **Tip:** Agrega y edita tus registros libremente en la tabla de abajo. Haz clic en 'Guardar Cambios' para actualizar el archivo.")
 
 def color_filas(row):
     if row["Estado Visita"] == "Visitado":
@@ -85,17 +77,16 @@ def color_filas(row):
         return ['background-color: #cce5ff; color: #004085'] * len(row)
     return [''] * len(row)
 
-if not df_filtrado.empty:
-    styled_df = df_filtrado.style.apply(color_filas, axis=1)
+if not df.empty:
+    styled_df = df.style.apply(color_filas, axis=1)
 else:
-    styled_df = df_filtrado
+    styled_df = df
 
-# TABLA PRINCIPAL COMPACTA (Evita el desplazamiento horizontal excesivo)
 edited_df = st.data_editor(
     styled_df,
     num_rows="dynamic",
     column_order=[
-        "Dirección/Comuna", "Mapa", "Precio", "Habitaciones", "Baños", "Balcón", 
+        "Dirección/Comuna", "Mapa", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
         "Teléfono", "WhatsApp", "Link", "Fecha Visita", "Estado Visita", 
         "Notas", "Opinión Final"
     ],
@@ -103,6 +94,7 @@ edited_df = st.data_editor(
         "Dirección/Comuna": st.column_config.TextColumn("📍 Dirección"),
         "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver"),
         "Precio": st.column_config.NumberColumn("💰 Precio", format="$ %d", step=10000),
+        "GGCC": st.column_config.NumberColumn("🏢 GGCC", format="$ %d", step=5000),
         "Habitaciones": st.column_config.NumberColumn("🛏️ Hab.", min_value=0, step=1),
         "Baños": st.column_config.NumberColumn("🛁 Baños", min_value=0, step=0.5),
         "Balcón": st.column_config.CheckboxColumn("🪴 Balcón"),
@@ -122,16 +114,27 @@ if st.button("💾 Guardar Cambios", type="primary"):
     columnas_a_borrar = [col for col in ["Mapa", "WhatsApp"] if col in edited_df.columns]
     edited_df = edited_df.drop(columns=columnas_a_borrar)
     
-    if f_estado or f_opinion:
-        df.update(edited_df)
-        nuevas_filas = edited_df[~edited_df.index.isin(df.index)]
-        df = pd.concat([df, nuevas_filas])
-        df.to_csv(FILE_PATH, index=False)
-    else:
-        edited_df.to_csv(FILE_PATH, index=False)
+    edited_df.to_csv(FILE_PATH, index=False)
         
-    st.success("¡Datos guardados!")
+    st.success("¡Datos guardados con éxito!")
     st.rerun()
+
+st.markdown("---")
+st.markdown("### 🔍 Filtrar y Buscar Departamentos")
+col_f1, col_f2 = st.columns(2)
+with col_f1:
+    f_estado = st.multiselect("Filtrar por Estado:", df["Estado Visita"].unique() if not df.empty else [])
+with col_f2:
+    f_opinion = st.multiselect("Filtrar por Opinión:", df["Opinión Final"].unique() if not df.empty else [])
+
+df_filtrado = df.copy()
+if f_estado:
+    df_filtrado = df_filtrado[df_filtrado["Estado Visita"].isin(f_estado)]
+if f_opinion:
+    df_filtrado = df_filtrado[df_filtrado["Opinión Final"].isin(f_opinion)]
+
+if f_estado or f_opinion:
+    st.dataframe(df_filtrado[["Dirección/Comuna", "Precio", "GGCC", "Estado Visita", "Opinión Final", "Link"]], use_container_width=True, hide_index=True)
 
 st.markdown("---")
 st.markdown("### 🗓️ Próximas Visitas")
@@ -139,6 +142,6 @@ if not df.empty:
     agendadas = df[df["Estado Visita"] == "Visita agendada"].copy()
     if not agendadas.empty:
         agendadas = agendadas.sort_values(by="Fecha Visita", na_position="last")
-        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Teléfono", "Precio", "Link"]], use_container_width=True, hide_index=True)
+        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Precio", "GGCC", "Teléfono", "Link"]], use_container_width=True, hide_index=True)
     else:
         st.write("No hay visitas agendadas por el momento.")
