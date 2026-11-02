@@ -22,22 +22,22 @@ def load_data():
                 df[col] = 0.0
         if "Balcón" not in df.columns:
             df["Balcón"] = False
-        if "Contacto" not in df.columns:
-            df["Contacto"] = ""
+        if "Teléfono" not in df.columns:
+            df["Teléfono"] = ""
         if "Dirección/Comuna" not in df.columns:
             df["Dirección/Comuna"] = ""
             
-        cols_texto = ["Dirección/Comuna", "Contacto", "Estado Visita", "Opinión Final", "Link", "Notas"]
+        cols_texto = ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]
         for col in cols_texto:
             if col in df.columns:
                 df[col] = df[col].fillna("").astype(str)
         return df
     else:
         df_vacio = pd.DataFrame(columns=[
-            "Dirección/Comuna", "Precio", "Habitaciones", "Baños", "Balcón", "Contacto",
+            "Dirección/Comuna", "Precio", "Habitaciones", "Baños", "Balcón", "Teléfono",
             "Fecha Visita", "Estado Visita", "Opinión Final", "Link", "Notas"
         ])
-        cols_texto = ["Dirección/Comuna", "Contacto", "Estado Visita", "Opinión Final", "Link", "Notas"]
+        cols_texto = ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]
         for col in cols_texto:
             df_vacio[col] = df_vacio[col].astype(str)
         df_vacio["Habitaciones"] = df_vacio["Habitaciones"].astype(float)
@@ -47,10 +47,9 @@ def load_data():
 
 df = load_data()
 
-# Generar Links Dinámicos
+# Generar Links Dinámicos (El teléfono se convierte en enlace de WhatsApp)
 df["Mapa"] = "https://www.google.com/maps/search/?api=1&query=" + df["Dirección/Comuna"].str.replace(" ", "+")
-# Limpiar el número ingresado para asegurar que WhatsApp funcione (extrae solo los números)
-df["WhatsApp"] = df["Contacto"].apply(lambda x: f"https://wa.me/{re.sub(r'[^0-9]', '', str(x))}" if pd.notna(x) and str(x).strip() != "" else "")
+df["WhatsApp"] = df["Teléfono"].apply(lambda x: f"https://wa.me/{re.sub(r'[^0-9]', '', str(x))}" if pd.notna(x) and str(x).strip() != "" else "")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -64,7 +63,6 @@ with col4:
 
 st.markdown("### 📋 Registro Principal")
 
-# SECCIÓN DE FILTROS
 st.write("🔍 **Filtros de Búsqueda:**")
 col_f1, col_f2 = st.columns(2)
 with col_f1:
@@ -92,26 +90,25 @@ if not df_filtrado.empty:
 else:
     styled_df = df_filtrado
 
-# TABLA INTERACTIVA
+# TABLA PRINCIPAL COMPACTA (Evita el desplazamiento horizontal excesivo)
 edited_df = st.data_editor(
     styled_df,
     num_rows="dynamic",
-    # Orden forzado de izquierda a derecha
     column_order=[
         "Dirección/Comuna", "Mapa", "Precio", "Habitaciones", "Baños", "Balcón", 
-        "Contacto", "WhatsApp", "Link", "Fecha Visita", "Estado Visita", 
+        "Teléfono", "WhatsApp", "Link", "Fecha Visita", "Estado Visita", 
         "Notas", "Opinión Final"
     ],
     column_config={
         "Dirección/Comuna": st.column_config.TextColumn("📍 Dirección"),
-        "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver Mapa"),
+        "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver"),
         "Precio": st.column_config.NumberColumn("💰 Precio", format="$ %d", step=10000),
         "Habitaciones": st.column_config.NumberColumn("🛏️ Hab.", min_value=0, step=1),
         "Baños": st.column_config.NumberColumn("🛁 Baños", min_value=0, step=0.5),
         "Balcón": st.column_config.CheckboxColumn("🪴 Balcón"),
-        "Contacto": st.column_config.TextColumn("📱 Teléfono (Ej: 569...)"),
-        "WhatsApp": st.column_config.LinkColumn("💬 WhatsApp", display_text="Enviar Msg"),
-        "Link": st.column_config.LinkColumn("🔗 Aviso"),
+        "Teléfono": st.column_config.TextColumn("📞 Teléfono (+569...)"),
+        "WhatsApp": st.column_config.LinkColumn("💬 WhatsApp", display_text="Abrir Chat"),
+        "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link"),
         "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
         "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Espera de respuesta", "Visita agendada", "Visitado"], required=True),
         "Notas": st.column_config.TextColumn("📝 Notas"),
@@ -142,6 +139,6 @@ if not df.empty:
     agendadas = df[df["Estado Visita"] == "Visita agendada"].copy()
     if not agendadas.empty:
         agendadas = agendadas.sort_values(by="Fecha Visita", na_position="last")
-        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Contacto", "Precio", "Link"]], use_container_width=True, hide_index=True)
+        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Teléfono", "Precio", "Link"]], use_container_width=True, hide_index=True)
     else:
         st.write("No hay visitas agendadas por el momento.")
