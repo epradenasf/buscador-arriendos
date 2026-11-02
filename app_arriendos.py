@@ -10,48 +10,44 @@ st.markdown("---")
 
 FILE_PATH = "registro_departamentos.csv"
 
+# Columnas oficiales que se guardarán en el archivo
+CORE_COLUMNS = [
+    "Dirección/Comuna", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
+    "Teléfono", "Link", "Fecha Visita", "Estado Visita", "Notas", "Opinión Final"
+]
+
 def load_data():
     if os.path.exists(FILE_PATH):
         df = pd.read_csv(FILE_PATH)
         
+        # Asegurar que existan todas las columnas
+        for col in CORE_COLUMNS:
+            if col not in df.columns:
+                if col in ["Precio", "GGCC"]:
+                    df[col] = 0.0
+                elif col in ["Habitaciones", "Baños"]:
+                    df[col] = 0.0
+                elif col == "Balcón":
+                    df[col] = False
+                elif col == "Fecha Visita":
+                    df[col] = pd.NaT
+                else:
+                    df[col] = ""
+                    
         if "Fecha Visita" in df.columns:
             df["Fecha Visita"] = pd.to_datetime(df["Fecha Visita"], errors='coerce').dt.date
             
-        for col in ["Habitaciones", "Baños"]:
-            if col not in df.columns:
-                df[col] = 0.0
-        for col in ["Precio", "GGCC"]:
-            if col not in df.columns:
-                df[col] = 0.0
-        if "Balcón" not in df.columns:
-            df["Balcón"] = False
-        if "Teléfono" not in df.columns:
-            df["Teléfono"] = ""
-        if "Dirección/Comuna" not in df.columns:
-            df["Dirección/Comuna"] = ""
+        # Rellenar nulos para evitar errores de tipo
+        for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
+            df[col] = df[col].fillna("").astype(str)
             
-        cols_texto = ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]
-        for col in cols_texto:
-            if col in df.columns:
-                df[col] = df[col].fillna("").astype(str)
         return df
     else:
-        df_vacio = pd.DataFrame(columns=[
-            "Dirección/Comuna", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", "Teléfono",
-            "Fecha Visita", "Estado Visita", "Opinión Final", "Link", "Notas"
-        ])
-        cols_texto = ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]
-        for col in cols_texto:
-            df_vacio[col] = df_vacio[col].astype(str)
-        df_vacio["Precio"] = df_vacio["Precio"].astype(float)
-        df_vacio["GGCC"] = df_vacio["GGCC"].astype(float)
-        df_vacio["Habitaciones"] = df_vacio["Habitaciones"].astype(float)
-        df_vacio["Baños"] = df_vacio["Baños"].astype(float)
-        df_vacio["Balcón"] = df_vacio["Balcón"].astype(bool)
-        return df_vacio
+        return pd.DataFrame(columns=CORE_COLUMNS)
 
 df = load_data()
 
+# Generar Links Dinámicos
 df["Mapa"] = "https://www.google.com/maps/search/?api=1&query=" + df["Dirección/Comuna"].str.replace(" ", "+")
 df["WhatsApp"] = df["Teléfono"].apply(lambda x: f"https://wa.me/{re.sub(r'[^0-9]', '', str(x))}" if pd.notna(x) and str(x).strip() != "" else "")
 
@@ -66,7 +62,7 @@ with col4:
     st.metric("Descartados", len(df[df["Opinión Final"] == "Descartado"]) if not df.empty else 0)
 
 st.markdown("### 📋 Registro Principal")
-st.info("💡 **Tip:** Agrega y edita tus registros libremente en la tabla de abajo. Haz clic en 'Guardar Cambios' para actualizar el archivo.")
+st.info("💡 **Tip:** Rellena los datos, escribe la dirección y haz clic en **Guardar Cambios** para activar el mapa y asegurar que todo quede registrado.")
 
 def color_filas(row):
     if row["Estado Visita"] == "Visitado":
@@ -91,31 +87,35 @@ edited_df = st.data_editor(
         "Notas", "Opinión Final"
     ],
     column_config={
-        "Dirección/Comuna": st.column_config.TextColumn("📍 Dirección"),
+        "Dirección/Comuna": st.column_config.TextColumn("📍 Dirección", required=True),
         "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver"),
-        "Precio": st.column_config.NumberColumn("💰 Precio", format="$ %d", step=10000),
-        "GGCC": st.column_config.NumberColumn("🏢 GGCC", format="$ %d", step=5000),
-        "Habitaciones": st.column_config.NumberColumn("🛏️ Hab.", min_value=0, step=1),
-        "Baños": st.column_config.NumberColumn("🛁 Baños", min_value=0, step=0.5),
-        "Balcón": st.column_config.CheckboxColumn("🪴 Balcón"),
+        "Precio": st.column_config.NumberColumn("💰 Precio", format="$ %d", step=10000, default=0),
+        "GGCC": st.column_config.NumberColumn("🏢 GGCC", format="$ %d", step=5000, default=0),
+        "Habitaciones": st.column_config.NumberColumn("🛏️ Hab.", min_value=0, step=1, default=1),
+        "Baños": st.column_config.NumberColumn("🛁 Baños", min_value=0, step=0.5, default=1),
+        "Balcón": st.column_config.CheckboxColumn("🪴 Balcón", default=False),
         "Teléfono": st.column_config.TextColumn("📞 Teléfono (+569...)"),
         "WhatsApp": st.column_config.LinkColumn("💬 WhatsApp", display_text="Abrir Chat"),
         "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link"),
         "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
-        "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Espera de respuesta", "Visita agendada", "Visitado"], required=True),
+        "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Espera de respuesta", "Visita agendada", "Visitado"], required=True, default="Por contactar"),
         "Notas": st.column_config.TextColumn("📝 Notas"),
-        "Opinión Final": st.column_config.SelectboxColumn("⭐ Opinión", options=["-", "Descartado", "Posible", "Muy posible"], required=True)
+        "Opinión Final": st.column_config.SelectboxColumn("⭐ Opinión", options=["-", "Descartado", "Posible", "Muy posible"], required=True, default="-")
     },
     use_container_width=True,
     hide_index=True
 )
 
 if st.button("💾 Guardar Cambios", type="primary"):
-    columnas_a_borrar = [col for col in ["Mapa", "WhatsApp"] if col in edited_df.columns]
-    edited_df = edited_df.drop(columns=columnas_a_borrar)
+    # Filtrar solo las columnas oficiales para descartar los campos calculados de visualización
+    save_df = edited_df[[col for col in CORE_COLUMNS if col in edited_df.columns]].copy()
     
-    edited_df.to_csv(FILE_PATH, index=False)
-        
+    # Limpiar valores nulos antes de guardar
+    for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
+        if col in save_df.columns:
+            save_df[col] = save_df[col].fillna("").astype(str)
+            
+    save_df.to_csv(FILE_PATH, index=False)
     st.success("¡Datos guardados con éxito!")
     st.rerun()
 
