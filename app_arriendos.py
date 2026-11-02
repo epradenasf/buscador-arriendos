@@ -10,7 +10,6 @@ st.markdown("---")
 
 FILE_PATH = "registro_departamentos.csv"
 
-# Columnas oficiales que se guardarán en el archivo
 CORE_COLUMNS = [
     "Dirección/Comuna", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
     "Teléfono", "Link", "Fecha Visita", "Estado Visita", "Notas", "Opinión Final"
@@ -18,9 +17,9 @@ CORE_COLUMNS = [
 
 def load_data():
     if os.path.exists(FILE_PATH):
-        df = pd.read_csv(FILE_PATH)
+        # Forzar que la columna Teléfono se lea siempre como texto (str)
+        df = pd.read_csv(FILE_PATH, dtype={"Teléfono": str})
         
-        # Asegurar que existan todas las columnas
         for col in CORE_COLUMNS:
             if col not in df.columns:
                 if col in ["Precio", "GGCC"]:
@@ -37,9 +36,11 @@ def load_data():
         if "Fecha Visita" in df.columns:
             df["Fecha Visita"] = pd.to_datetime(df["Fecha Visita"], errors='coerce').dt.date
             
-        # Rellenar nulos para evitar errores de tipo
         for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
             df[col] = df[col].fillna("").astype(str)
+            # Limpiar por si quedó algún .0 heredado del archivo anterior
+            if col == "Teléfono":
+                df[col] = df[col].str.replace(r'\.0$', '', regex=True)
             
         return df
     else:
@@ -47,7 +48,6 @@ def load_data():
 
 df = load_data()
 
-# Generar Links Dinámicos
 df["Mapa"] = "https://www.google.com/maps/search/?api=1&query=" + df["Dirección/Comuna"].str.replace(" ", "+")
 df["WhatsApp"] = df["Teléfono"].apply(lambda x: f"https://wa.me/{re.sub(r'[^0-9]', '', str(x))}" if pd.notna(x) and str(x).strip() != "" else "")
 
@@ -107,13 +107,13 @@ edited_df = st.data_editor(
 )
 
 if st.button("💾 Guardar Cambios", type="primary"):
-    # Filtrar solo las columnas oficiales para descartar los campos calculados de visualización
     save_df = edited_df[[col for col in CORE_COLUMNS if col in edited_df.columns]].copy()
     
-    # Limpiar valores nulos antes de guardar
     for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
         if col in save_df.columns:
             save_df[col] = save_df[col].fillna("").astype(str)
+            if col == "Teléfono":
+                save_df[col] = save_df[col].str.replace(r'\.0$', '', regex=True)
             
     save_df.to_csv(FILE_PATH, index=False)
     st.success("¡Datos guardados con éxito!")
