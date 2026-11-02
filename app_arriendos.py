@@ -94,25 +94,33 @@ with col4:
     st.metric("Descartados", len(df[df["Opinión Final"] == "Descartado"]) if not df.empty else 0)
 
 st.markdown("### 📋 Registro Principal")
-st.info("💡 **Tip:** Haz clic en los encabezados de las columnas (ej. 'Precio') para ordenar de menor a mayor o alfabéticamente. Rellena los datos y haz clic en **Guardar Cambios**.")
 
-# Reglas de colores actualizadas (Azul suave si está Visitado)
-def color_filas(row):
-    if row["Estado Visita"] == "Visitado":
-        return ['background-color: #cce5ff; color: #004085'] * len(row)
-    elif row["Opinión Final"] == "Descartado":
-        return ['background-color: #f8d7da; color: #721c24'] * len(row)
-    elif row["Opinión Final"] == "Muy posible":
-        return ['background-color: #d4edda; color: #155724'] * len(row)
-    return [''] * len(row)
+# SELECTOR DE ORDENAMIENTO MANUAL (Solución definitiva para ordenar de mayor a menor o alfabéticamente)
+col_ord1, col_ord2 = st.columns([2, 4])
+with col_ord1:
+    criterio_orden = st.selectbox("🔀 Ordenar tabla por:", [
+        "Por defecto", 
+        "Precio: Menor a Mayor", 
+        "Precio: Mayor a Menor", 
+        "GGCC: Mayor a Menor", 
+        "Dirección: Alfabético (A-Z)"
+    ])
 
 if not df.empty:
-    styled_df = df.style.apply(color_filas, axis=1)
-else:
-    styled_df = df
+    if criterio_orden == "Precio: Menor a Mayor":
+        df = df.sort_values(by="Precio", ascending=True)
+    elif criterio_orden == "Precio: Mayor a Menor":
+        df = df.sort_values(by="Precio", ascending=False)
+    elif criterio_orden == "GGCC: Mayor a Menor":
+        df = df.sort_values(by="GGCC", ascending=False)
+    elif criterio_orden == "Dirección: Alfabético (A-Z)":
+        df = df.sort_values(by="Dirección/Comuna", ascending=True)
 
+st.info("💡 **Tip:** Rellena los datos, usa el selector de arriba para ordenar y haz clic en **Guardar Cambios**.")
+
+# TABLA PRINCIPAL EDITABLE
 edited_df = st.data_editor(
-    styled_df,
+    df,
     num_rows="dynamic",
     column_order=[
         "Dirección/Comuna", "Mapa", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
