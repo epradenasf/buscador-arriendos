@@ -14,15 +14,12 @@ FILE_PATH = "registro_departamentos.csv"
 
 CORE_COLUMNS = [
     "Dirección/Comuna", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
-    "Teléfono", "Link", "Fecha Visita", "Estado Visita", "Notas", "Opinión Final"
+    "Teléfono", "Link", "Estado Visita", "Fecha Visita", "Hora", "Notas", "Opinión Final"
 ]
 
-# Función para sincronizar y guardar el CSV directamente en GitHub
 def guardar_en_github(df_a_guardar):
-    # Guardar localmente primero
     df_a_guardar.to_csv(FILE_PATH, index=False)
     
-    # Si estamos en Streamlit Cloud y configuraste los secretos, sube a GitHub
     if "GITHUB_TOKEN" in st.secrets and "REPO_NAME" in st.secrets:
         token = st.secrets["GITHUB_TOKEN"]
         repo = st.secrets["REPO_NAME"]
@@ -33,16 +30,13 @@ def guardar_en_github(df_a_guardar):
             "Accept": "application/vnd.github+json"
         }
         
-        # Obtener el sha actual del archivo en GitHub (necesario para actualizarlo)
         response = requests.get(url, headers=headers)
         sha = response.json().get("sha") if response.status_code == 200 else None
         
-        # Leer el CSV local y pasarlo a base64
         with open(FILE_PATH, "rb") as f:
             content_bytes = f.read()
         content_encoded = base64.b64encode(content_bytes).decode("utf-8")
         
-        # Preparar los datos para la API de GitHub
         data = {
             "message": "Actualización automática de arriendos desde Streamlit",
             "content": content_encoded
@@ -50,14 +44,13 @@ def guardar_en_github(df_a_guardar):
         if sha:
             data["sha"] = sha
             
-        # Enviar actualización a GitHub
         put_response = requests.put(url, headers=headers, json=data)
         if put_response.status_code not in [200, 201]:
             st.warning("Se guardó localmente, pero hubo un problema al sincronizar con GitHub.")
 
 def load_data():
     if os.path.exists(FILE_PATH):
-        df = pd.read_csv(FILE_PATH, dtype={"Teléfono": str})
+        df = pd.read_csv(FILE_PATH, dtype={"Teléfono": str, "Hora": str})
         
         for col in CORE_COLUMNS:
             if col not in df.columns:
@@ -75,10 +68,11 @@ def load_data():
         if "Fecha Visita" in df.columns:
             df["Fecha Visita"] = pd.to_datetime(df["Fecha Visita"], errors='coerce').dt.date
             
-        for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
-            df[col] = df[col].fillna("").astype(str)
-            if col == "Teléfono":
-                df[col] = df[col].str.replace(r'\.0$', '', regex=True)
+        for col in ["Dirección/Comuna", "Teléfono", "Hora", "Estado Visita", "Opinión Final", "Link", "Notas"]:
+            if col in df.columns:
+                df[col] = df[col].fillna("").astype(str)
+                if col == "Teléfono":
+                    df[col] = df[col].str.replace(r'\.0$', '', regex=True)
             
         return df
     else:
@@ -121,7 +115,7 @@ edited_df = st.data_editor(
     num_rows="dynamic",
     column_order=[
         "Dirección/Comuna", "Mapa", "Precio", "GGCC", "Habitaciones", "Baños", "Balcón", 
-        "Teléfono", "WhatsApp", "Link", "Fecha Visita", "Estado Visita", 
+        "Teléfono", "WhatsApp", "Link", "Estado Visita", "Fecha Visita", "Hora", 
         "Notas", "Opinión Final"
     ],
     column_config={
@@ -135,8 +129,9 @@ edited_df = st.data_editor(
         "Teléfono": st.column_config.TextColumn("📞 Teléfono (+569...)"),
         "WhatsApp": st.column_config.LinkColumn("💬 WhatsApp", display_text="Abrir Chat"),
         "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link"),
-        "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
         "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Espera de respuesta", "Visita agendada", "Visitado"], required=True, default="Por contactar"),
+        "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
+        "Hora": st.column_config.TextColumn("⏰ Hora (ej: 15:30)"),
         "Notas": st.column_config.TextColumn("📝 Notas"),
         "Opinión Final": st.column_config.SelectboxColumn("⭐ Opinión", options=["-", "Descartado", "Posible", "Muy posible"], required=True, default="-")
     },
@@ -147,15 +142,13 @@ edited_df = st.data_editor(
 if st.button("💾 Guardar Cambios", type="primary"):
     save_df = edited_df[[col for col in CORE_COLUMNS if col in edited_df.columns]].copy()
     
-    for col in ["Dirección/Comuna", "Teléfono", "Estado Visita", "Opinión Final", "Link", "Notas"]:
+    for col in ["Dirección/Comuna", "Teléfono", "Hora", "Estado Visita", "Opinión Final", "Link", "Notas"]:
         if col in save_df.columns:
             save_df[col] = save_df[col].fillna("").astype(str)
             if col == "Teléfono":
                 save_df[col] = save_df[col].str.replace(r'\.0$', '', regex=True)
             
-    # Llamar a la función que guarda y actualiza GitHub automáticamente
     guardar_en_github(save_df)
-    
     st.success("¡Datos guardados y sincronizados en la nube con éxito!")
     st.rerun()
 
@@ -174,7 +167,15 @@ if f_opinion:
     df_filtrado = df_filtrado[df_filtrado["Opinión Final"].isin(f_opinion)]
 
 if f_estado or f_opinion:
-    st.dataframe(df_filtrado[["Dirección/Comuna", "Precio", "GGCC", "Estado Visita", "Opinión Final", "Link"]], use_container_width=True, hide_index=True)
+    st.dataframe(
+        df_filtrado[["Dirección/Comuna", "Mapa", "Precio", "GGCC", "Estado Visita", "Fecha Visita", "Hora", "Link"]], 
+        use_container_width=True, 
+        hide_index=True,
+        column_config={
+            "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver"),
+            "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link")
+        }
+    )
 
 st.markdown("---")
 st.markdown("### 🗓️ Próximas Visitas")
@@ -182,6 +183,14 @@ if not df.empty:
     agendadas = df[df["Estado Visita"] == "Visita agendada"].copy()
     if not agendadas.empty:
         agendadas = agendadas.sort_values(by="Fecha Visita", na_position="last")
-        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Precio", "GGCC", "Teléfono", "Link"]], use_container_width=True, hide_index=True)
+        st.dataframe(
+            agendadas[["Fecha Visita", "Hora", "Dirección/Comuna", "Mapa", "Teléfono", "Precio", "GGCC", "Link"]], 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver Mapa"),
+                "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link")
+            }
+        )
     else:
         st.write("No hay visitas agendadas por el momento.")
