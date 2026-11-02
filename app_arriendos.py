@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
 
 st.set_page_config(page_title="Buscador de Arriendos", layout="wide", page_icon="🏡")
 
@@ -16,26 +17,27 @@ def load_data():
         if "Fecha Visita" in df.columns:
             df["Fecha Visita"] = pd.to_datetime(df["Fecha Visita"], errors='coerce').dt.date
             
-        # Crear nuevas columnas si el CSV antiguo no las tiene
         for col in ["Habitaciones", "Baños"]:
             if col not in df.columns:
                 df[col] = 0.0
         if "Balcón" not in df.columns:
             df["Balcón"] = False
+        if "Contacto" not in df.columns:
+            df["Contacto"] = ""
         if "Dirección/Comuna" not in df.columns:
             df["Dirección/Comuna"] = ""
             
-        cols_texto = ["Dirección/Comuna", "Estado Visita", "Opinión Final", "Link", "Notas"]
+        cols_texto = ["Dirección/Comuna", "Contacto", "Estado Visita", "Opinión Final", "Link", "Notas"]
         for col in cols_texto:
             if col in df.columns:
                 df[col] = df[col].fillna("").astype(str)
         return df
     else:
         df_vacio = pd.DataFrame(columns=[
-            "Dirección/Comuna", "Precio", "Habitaciones", "Baños", "Balcón",
+            "Dirección/Comuna", "Precio", "Habitaciones", "Baños", "Balcón", "Contacto",
             "Fecha Visita", "Estado Visita", "Opinión Final", "Link", "Notas"
         ])
-        cols_texto = ["Dirección/Comuna", "Estado Visita", "Opinión Final", "Link", "Notas"]
+        cols_texto = ["Dirección/Comuna", "Contacto", "Estado Visita", "Opinión Final", "Link", "Notas"]
         for col in cols_texto:
             df_vacio[col] = df_vacio[col].astype(str)
         df_vacio["Habitaciones"] = df_vacio["Habitaciones"].astype(float)
@@ -45,8 +47,10 @@ def load_data():
 
 df = load_data()
 
-# Generar Links de Google Maps dinámicamente según la dirección
+# Generar Links Dinámicos
 df["Mapa"] = "https://www.google.com/maps/search/?api=1&query=" + df["Dirección/Comuna"].str.replace(" ", "+")
+# Limpiar el número ingresado para asegurar que WhatsApp funcione (extrae solo los números)
+df["WhatsApp"] = df["Contacto"].apply(lambda x: f"https://wa.me/{re.sub(r'[^0-9]', '', str(x))}" if pd.notna(x) and str(x).strip() != "" else "")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
@@ -68,14 +72,11 @@ with col_f1:
 with col_f2:
     f_opinion = st.multiselect("Filtrar por Opinión:", df["Opinión Final"].unique() if not df.empty else [])
 
-# Aplicar filtros al DataFrame
 df_filtrado = df.copy()
 if f_estado:
     df_filtrado = df_filtrado[df_filtrado["Estado Visita"].isin(f_estado)]
 if f_opinion:
     df_filtrado = df_filtrado[df_filtrado["Opinión Final"].isin(f_opinion)]
-
-st.info("💡 **Tip:** Haz clic en el nombre de cualquier columna (ej. 'Precio') para ordenar. **Para eliminar una fila, asegúrate de no tener ningún filtro activo.**")
 
 def color_filas(row):
     if row["Estado Visita"] == "Visitado":
@@ -91,33 +92,39 @@ if not df_filtrado.empty:
 else:
     styled_df = df_filtrado
 
-# TABLA INTERACTIVA ACTUALIZADA
+# TABLA INTERACTIVA
 edited_df = st.data_editor(
     styled_df,
     num_rows="dynamic",
+    # Orden forzado de izquierda a derecha
+    column_order=[
+        "Dirección/Comuna", "Mapa", "Precio", "Habitaciones", "Baños", "Balcón", 
+        "Contacto", "WhatsApp", "Link", "Fecha Visita", "Estado Visita", 
+        "Notas", "Opinión Final"
+    ],
     column_config={
-        "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
-        "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Visita agendada", "Visitado"], required=True),
-        "Opinión Final": st.column_config.SelectboxColumn("⭐ Opinión", options=["-", "Descartado", "Posible", "Muy posible"], required=True),
-        "Precio": st.column_config.NumberColumn("💰 Precio (CLP)", format="$ %d", step=10000),
+        "Dirección/Comuna": st.column_config.TextColumn("📍 Dirección"),
+        "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver Mapa"),
+        "Precio": st.column_config.NumberColumn("💰 Precio", format="$ %d", step=10000),
         "Habitaciones": st.column_config.NumberColumn("🛏️ Hab.", min_value=0, step=1),
         "Baños": st.column_config.NumberColumn("🛁 Baños", min_value=0, step=0.5),
         "Balcón": st.column_config.CheckboxColumn("🪴 Balcón"),
-        "Dirección/Comuna": st.column_config.TextColumn("📍 Dirección"),
-        "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver en Mapa"),
+        "Contacto": st.column_config.TextColumn("📱 Teléfono (Ej: 569...)"),
+        "WhatsApp": st.column_config.LinkColumn("💬 WhatsApp", display_text="Enviar Msg"),
         "Link": st.column_config.LinkColumn("🔗 Aviso"),
-        "Notas": st.column_config.TextColumn("📝 Notas")
+        "Fecha Visita": st.column_config.DateColumn("📅 Fecha", format="DD/MM/YYYY"),
+        "Estado Visita": st.column_config.SelectboxColumn("🚦 Estado", options=["Por contactar", "Espera de respuesta", "Visita agendada", "Visitado"], required=True),
+        "Notas": st.column_config.TextColumn("📝 Notas"),
+        "Opinión Final": st.column_config.SelectboxColumn("⭐ Opinión", options=["-", "Descartado", "Posible", "Muy posible"], required=True)
     },
     use_container_width=True,
     hide_index=True
 )
 
 if st.button("💾 Guardar Cambios", type="primary"):
-    # Remover columna Mapa antes de guardar porque se genera sola
-    if "Mapa" in edited_df.columns:
-        edited_df = edited_df.drop(columns=["Mapa"])
+    columnas_a_borrar = [col for col in ["Mapa", "WhatsApp"] if col in edited_df.columns]
+    edited_df = edited_df.drop(columns=columnas_a_borrar)
     
-    # Lógica de guardado seguro con filtros activos
     if f_estado or f_opinion:
         df.update(edited_df)
         nuevas_filas = edited_df[~edited_df.index.isin(df.index)]
@@ -130,11 +137,11 @@ if st.button("💾 Guardar Cambios", type="primary"):
     st.rerun()
 
 st.markdown("---")
-st.markdown("### 🗓️ Próximas Visitas Agendadas")
+st.markdown("### 🗓️ Próximas Visitas")
 if not df.empty:
     agendadas = df[df["Estado Visita"] == "Visita agendada"].copy()
     if not agendadas.empty:
         agendadas = agendadas.sort_values(by="Fecha Visita", na_position="last")
-        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Precio", "Link"]], use_container_width=True, hide_index=True)
+        st.dataframe(agendadas[["Fecha Visita", "Dirección/Comuna", "Contacto", "Precio", "Link"]], use_container_width=True, hide_index=True)
     else:
         st.write("No hay visitas agendadas por el momento.")
