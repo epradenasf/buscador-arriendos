@@ -95,7 +95,7 @@ with col4:
 
 st.markdown("### 📋 Registro Principal")
 
-# SELECTOR DE ORDENAMIENTO MANUAL (Solución definitiva para ordenar de mayor a menor o alfabéticamente)
+# SELECTOR DE ORDENAMIENTO (Nuevas opciones para agrupar "Visitados")
 col_ord1, col_ord2 = st.columns([2, 4])
 with col_ord1:
     criterio_orden = st.selectbox("🔀 Ordenar tabla por:", [
@@ -103,7 +103,9 @@ with col_ord1:
         "Precio: Menor a Mayor", 
         "Precio: Mayor a Menor", 
         "GGCC: Mayor a Menor", 
-        "Dirección: Alfabético (A-Z)"
+        "Dirección: Alfabético (A-Z)",
+        "Estado: Visitados al final",
+        "Estado: Visitados al principio"
     ])
 
 if not df.empty:
@@ -115,10 +117,16 @@ if not df.empty:
         df = df.sort_values(by="GGCC", ascending=False)
     elif criterio_orden == "Dirección: Alfabético (A-Z)":
         df = df.sort_values(by="Dirección/Comuna", ascending=True)
+    elif criterio_orden == "Estado: Visitados al final":
+        df["_es_visitado"] = df["Estado Visita"] == "Visitado"
+        df = df.sort_values(by=["_es_visitado", "Estado Visita"], ascending=[True, True]).drop(columns=["_es_visitado"])
+    elif criterio_orden == "Estado: Visitados al principio":
+        df["_es_visitado"] = df["Estado Visita"] == "Visitado"
+        df = df.sort_values(by=["_es_visitado", "Estado Visita"], ascending=[False, True]).drop(columns=["_es_visitado"])
 
 st.info("💡 **Tip:** Rellena los datos, usa el selector de arriba para ordenar y haz clic en **Guardar Cambios**.")
 
-# TABLA PRINCIPAL EDITABLE
+# TABLA PRINCIPAL EDITABLE (Sin alterar por colores inactivos)
 edited_df = st.data_editor(
     df,
     num_rows="dynamic",
@@ -175,12 +183,16 @@ if f_opinion:
     df_filtrado = df_filtrado[df_filtrado["Opinión Final"].isin(f_opinion)]
 
 if f_estado or f_opinion:
+    # Calcular Total exclusivamente para la visualización del dashboard
+    df_filtrado["Total"] = pd.to_numeric(df_filtrado["Precio"], errors='coerce').fillna(0) + pd.to_numeric(df_filtrado["GGCC"], errors='coerce').fillna(0)
+    
     st.dataframe(
-        df_filtrado[["Dirección/Comuna", "Mapa", "Precio", "GGCC", "Link"]], 
+        df_filtrado[["Dirección/Comuna", "Mapa", "Precio", "GGCC", "Total", "Link"]], 
         use_container_width=True, 
         hide_index=True,
         column_config={
             "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver"),
+            "Total": st.column_config.NumberColumn("💵 Total", format="$ %d"),
             "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link")
         }
     )
@@ -190,14 +202,18 @@ st.markdown("### 🗓️ Próximas Visitas")
 if not df.empty:
     agendadas = df[df["Estado Visita"] == "Visita agendada"].copy()
     if not agendadas.empty:
+        # Calcular Total exclusivamente para la visualización del dashboard
+        agendadas["Total"] = pd.to_numeric(agendadas["Precio"], errors='coerce').fillna(0) + pd.to_numeric(agendadas["GGCC"], errors='coerce').fillna(0)
         agendadas = agendadas.sort_values(by="Fecha Visita", na_position="last")
+        
         st.dataframe(
-            agendadas[["Fecha Visita", "Dirección/Comuna", "Mapa", "Teléfono", "Precio", "GGCC", "Link"]], 
+            agendadas[["Fecha Visita", "Dirección/Comuna", "Mapa", "Teléfono", "Precio", "GGCC", "Total", "Link"]], 
             use_container_width=True, 
             hide_index=True,
             column_config={
                 "Fecha Visita": st.column_config.DatetimeColumn("📅 Fecha y Hora", format="DD/MM/YYYY HH:mm"),
                 "Mapa": st.column_config.LinkColumn("🗺️ Mapa", display_text="Ver Mapa"),
+                "Total": st.column_config.NumberColumn("💵 Total", format="$ %d"),
                 "Link": st.column_config.LinkColumn("🔗 Aviso", display_text="Ver Link")
             }
         )
